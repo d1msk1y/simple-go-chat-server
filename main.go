@@ -22,6 +22,8 @@ var messages = []message{
 func main() {
 	router := gin.Default()
 	router.GET("/messages", getMessages)
+	router.POST("/messages", postMessage)
+
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
 	})
@@ -30,6 +32,17 @@ func main() {
 	if err != nil {
 		return
 	}
+}
+
+func postMessage(c *gin.Context) {
+	var newMessage message
+
+	if err := c.BindJSON(&newMessage); err != nil {
+		return
+	}
+
+	messages = append(messages, newMessage)
+	c.IndentedJSON(http.StatusCreated, newMessage)
 }
 
 func getMessages(c *gin.Context) {
