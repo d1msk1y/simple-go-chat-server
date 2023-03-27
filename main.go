@@ -23,7 +23,8 @@ var messages = []message{
 func main() {
 	router := gin.Default()
 	router.GET("/messages", getMessages)
-	router.GET("/messages/:id", getAlbumByID)
+	router.GET("/messages/:id", getMessageByID)
+	router.GET("/messages/last", getLastMessage)
 	router.POST("/messages", postMessage)
 
 	router.GET("/", func(c *gin.Context) {
@@ -51,14 +52,18 @@ func getMessages(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, messages)
 }
 
-func getAlbumByID(c *gin.Context) {
+func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
 
-	for _, a := range messages {
-		if a.ID == id {
-			c.IndentedJSON(http.StatusOK, a)
+	for _, m := range messages {
+		if m.ID == id {
+			c.IndentedJSON(http.StatusOK, m)
 			return
 		}
 	}
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "message not found!"})
+}
+
+func getLastMessage(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, messages[len(messages)-1])
 }
