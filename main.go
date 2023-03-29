@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -73,7 +74,8 @@ func postMessage(c *gin.Context) {
 	messages = append(messages, newMessage)
 	c.IndentedJSON(http.StatusCreated, newMessage)
 
-	conn.WriteMessage(websocket.TextMessage, []byte(messages[len(messages)-1].Message))
+	messageJson, _ := json.Marshal(messages[len(messages)-1])
+	conn.WriteMessage(websocket.TextMessage, messageJson)
 }
 
 func getMessages(c *gin.Context) {
