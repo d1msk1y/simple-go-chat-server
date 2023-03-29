@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"net/http"
 )
 
@@ -12,6 +14,8 @@ type message struct {
 	Message  string `json:"message"`
 }
 
+var conn *websocket.Conn
+
 // test slice of message structs
 var messages = []message{
 	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
@@ -20,7 +24,25 @@ var messages = []message{
 	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
 }
 
+var wsupgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
 func main() {
+	runServer()
+}
+
+func wshandler(w http.ResponseWriter, r *http.Request) {
+	var err error
+	conn, err = wsupgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Println("Failed to set websocket upgradeL %+v", err)
+		return
+	}
+}
+
+func runServer() {
 	router := gin.Default()
 	router.GET("/messages", getMessages)
 	router.GET("/messages/:id", getMessageByID)
@@ -29,6 +51,10 @@ func main() {
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
+	})
+
+	router.GET("/ws", func(c *gin.Context) {
+		wshandler(c.Writer, c.Request)
 	})
 
 	err := router.Run("localhost:8080")
@@ -46,6 +72,8 @@ func postMessage(c *gin.Context) {
 
 	messages = append(messages, newMessage)
 	c.IndentedJSON(http.StatusCreated, newMessage)
+
+	conn.WriteMessage(websocket.TextMessage, []byte(messages[len(messages)-1].Message))
 }
 
 func getMessages(c *gin.Context) {
@@ -66,4 +94,5 @@ func getMessageByID(c *gin.Context) {
 
 func getLastMessage(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, messages[len(messages)-1])
+
 }
