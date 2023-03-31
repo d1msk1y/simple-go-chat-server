@@ -8,10 +8,6 @@ require (
 	github.com/ulule/limiter/v3 v3.11.1
 )
 
-replace (
-	github.com/d1msk1y/simple-go-chat-server v0.0.0 => "rate_limiter/rate_limiter"
-)
-
 require (
 	github.com/bytedance/sonic v1.8.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect

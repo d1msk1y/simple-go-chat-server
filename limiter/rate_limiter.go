@@ -8,11 +8,11 @@ import (
 
 func GetLimiter() *limiter.Limiter {
 	rate := limiter.Rate{
-		Period: 1 * time.Minute,
-		Limit:  50,
+		Period: 1 * time.Second,
+		Limit:  25,
 	}
 
-	rate, err := limiter.NewRateFromFormatted("50-M")
+	rate, err := limiter.NewRateFromFormatted("25-M")
 	if err != nil {
 		panic(err)
 	}
