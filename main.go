@@ -4,22 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
+	"github.com/d1msk1y/simple-go-chat-server/models"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
 )
 
-type message struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Time     string `json:"time"`
-	Message  string `json:"message"`
-}
-
 var conn *websocket.Conn
 
 // test slice of message structs
-var messages = []message{
+var messages = []models.Message{
 	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
 	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
 	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
@@ -89,12 +83,11 @@ func runServer() {
 }
 
 func postMessage(c *gin.Context) {
-	var newMessage message
+	var newMessage models.Message
 
 	if err := c.BindJSON(&newMessage); err != nil {
 		return
 	}
-
 	messages = append(messages, newMessage)
 	c.IndentedJSON(http.StatusCreated, newMessage)
 
