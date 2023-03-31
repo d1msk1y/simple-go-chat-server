@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
+	"github.com/d1msk1y/simple-go-chat-server/pagination"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
@@ -63,8 +64,9 @@ func runServer() {
 		c.Next()
 	})
 
-	router.GET("/messages", getMessages)
+	router.GET("/messages", getMessagesByPage)
 	router.GET("/messages/:id", getMessageByID)
+	router.GET("/messages/pages/:page", getMessagesByPage)
 	router.GET("/messages/last", getLastMessage)
 	router.POST("/messages", postMessage)
 
@@ -95,8 +97,17 @@ func postMessage(c *gin.Context) {
 	conn.WriteMessage(websocket.TextMessage, messageJson)
 }
 
-func getMessages(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, messages)
+func getMessagesByPage(c *gin.Context) {
+	pageId := c.Param("page")
+	messages := messages
+
+	paginatedMessages := pagination.Paginate(messages, 10, pageId, c)
+
+	c.IndentedJSON(http.StatusOK, gin.H{
+		"messages": paginatedMessages,
+		"pageSize": 10,
+		"total":    len(messages),
+	})
 }
 
 func getMessageByID(c *gin.Context) {

@@ -12,8 +12,8 @@ type PaginatedResult struct {
 	Page  int
 }
 
-func Paginate(slice []models.Message, pageSize int, c *gin.Context) PaginatedResult {
-	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+func Paginate(slice []models.Message, pageSize int, pageId string, c *gin.Context) PaginatedResult {
+	page, err := strconv.Atoi(c.DefaultQuery("page", pageId))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
 		return PaginatedResult{}
