@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
@@ -45,6 +46,29 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 
 func runServer() {
 	router := gin.Default()
+
+	limiterInstance := limiter.GetLimiter()
+
+	router.Use(func(c *gin.Context) {
+		limiterContext, err := limiterInstance.Get(c.Request.Context(), "rate-limit")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Internal server error occurred while checking the rate limit",
+			})
+			c.Abort()
+			return
+		}
+		if limiterContext.Reached {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Too many requests",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	})
+
 	router.GET("/messages", getMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/last", getLastMessage)
