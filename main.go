@@ -20,6 +20,7 @@ var messages = []models.Message{
 	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
 	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
 }
+var pageSize int = 10
 
 var wsupgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -101,11 +102,11 @@ func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
 	messages := messages
 
-	paginatedMessages := pagination.Paginate(messages, 10, pageId, c)
+	paginatedMessages := pagination.Paginate(messages, pageSize, pageId, c)
 
 	c.IndentedJSON(http.StatusOK, gin.H{
 		"messages": paginatedMessages,
-		"pageSize": 10,
+		"pageSize": pageSize,
 		"total":    len(messages),
 	})
 }
@@ -124,5 +125,16 @@ func getMessageByID(c *gin.Context) {
 
 func getLastMessage(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, messages[len(messages)-1])
+}
 
+func getLastMessagePage(c *gin.Context) {
+
+	lastPageId := int(float64(len(messages)/pageSize) + 0.5)
+	paginatedMessages := pagination.Paginate(messages, pageSize, string(lastPageId), c)
+
+	c.IndentedJSON(http.StatusOK, gin.H{
+		"messages": paginatedMessages,
+		"pageSize": pageSize,
+		"total":    len(messages),
+	})
 }
