@@ -9,12 +9,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"strconv"
 )
 
 var conn *websocket.Conn
 
 // test slice of message structs
 var messages = []models.Message{
+	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
+	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
+	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
+	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
+
+	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
+	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
+	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
+	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
+
 	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
 	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
 	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
@@ -68,6 +79,7 @@ func runServer() {
 	router.GET("/messages", getMessagesByPage)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
+	router.GET("/messages/pages/last", getLastMessagePage)
 	router.GET("/messages/last", getLastMessage)
 	router.POST("/messages", postMessage)
 
@@ -128,13 +140,12 @@ func getLastMessage(c *gin.Context) {
 }
 
 func getLastMessagePage(c *gin.Context) {
-
-	lastPageId := int(float64(len(messages)/pageSize) + 0.5)
-	paginatedMessages := pagination.Paginate(messages, pageSize, string(lastPageId), c)
+	paginatedMessages := pagination.Paginate(messages, pageSize, strconv.Itoa(1), c)
 
 	c.IndentedJSON(http.StatusOK, gin.H{
 		"messages": paginatedMessages,
 		"pageSize": pageSize,
+		"page":     1,
 		"total":    len(messages),
 	})
 }
