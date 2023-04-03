@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"strconv"
 )
 
 var conn *websocket.Conn
@@ -19,7 +20,18 @@ var messages = []models.Message{
 	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
 	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
 	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
+
+	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
+	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
+	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
+	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
+
+	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
+	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
+	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
+	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
 }
+var pageSize int = 10
 
 var wsupgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -67,6 +79,7 @@ func runServer() {
 	router.GET("/messages", getMessagesByPage)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
+	router.GET("/messages/pages/last", getLastMessagePage)
 	router.GET("/messages/last", getLastMessage)
 	router.POST("/messages", postMessage)
 
@@ -101,11 +114,11 @@ func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
 	messages := messages
 
-	paginatedMessages := pagination.Paginate(messages, 10, pageId, c)
+	paginatedMessages := pagination.Paginate(messages, pageSize, pageId, c)
 
 	c.IndentedJSON(http.StatusOK, gin.H{
 		"messages": paginatedMessages,
-		"pageSize": 10,
+		"pageSize": pageSize,
 		"total":    len(messages),
 	})
 }
@@ -124,5 +137,15 @@ func getMessageByID(c *gin.Context) {
 
 func getLastMessage(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, messages[len(messages)-1])
+}
 
+func getLastMessagePage(c *gin.Context) {
+	paginatedMessages := pagination.Paginate(messages, pageSize, strconv.Itoa(1), c)
+
+	c.IndentedJSON(http.StatusOK, gin.H{
+		"messages": paginatedMessages,
+		"pageSize": pageSize,
+		"page":     1,
+		"total":    len(messages),
+	})
 }
