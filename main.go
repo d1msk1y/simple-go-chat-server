@@ -1,31 +1,26 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
 	"github.com/d1msk1y/simple-go-chat-server/pagination"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 )
 
 var conn *websocket.Conn
+var db *sql.DB
 
 // test slice of message structs
 var messages = []models.Message{
-	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
-	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
-	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
-	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
-
-	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
-	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
-	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
-	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
-
 	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
 	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
 	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
@@ -39,6 +34,26 @@ var wsupgrader = websocket.Upgrader{
 }
 
 func main() {
+	cfg := mysql.Config{
+		User:   os.Getenv("DBUSER"),
+		Passwd: os.Getenv("DBPASS"),
+		Net:    "tcp",
+		Addr:   "127.0.0.1:3306",
+		DBName: "chat",
+	}
+
+	var err error
+	db, err = sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pingErr := db.Ping()
+	if pingErr != nil {
+		log.Fatal(pingErr)
+	}
+	fmt.Println("Connected!")
+
 	runServer()
 }
 
@@ -77,6 +92,7 @@ func runServer() {
 	})
 
 	router.GET("/messages", getMessagesByPage)
+	router.GET("/messages/all", getAllMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
 	router.GET("/messages/pages/last", getLastMessagePage)
@@ -126,17 +142,52 @@ func getMessagesByPage(c *gin.Context) {
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
 
-	for _, m := range messages {
-		if m.ID == id {
-			c.IndentedJSON(http.StatusOK, m)
-			return
+	row := db.QueryRow("SELECT * FROM Messages WHERE id = ?", id)
+
+	var message models.Message
+	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Errorf("albumsById %d: no such album")
 		}
+		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "message not found!"})
+	c.IndentedJSON(http.StatusOK, message)
+}
+
+// test func
+func getAllMessages(c *gin.Context) {
+	var messages []models.Message
+
+	rows, err := db.Query("SELECT * FROM Messages")
+	if err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var message models.Message
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+			fmt.Errorf("messagesFromDB %q: %v", err)
+		}
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+	c.IndentedJSON(http.StatusOK, messages)
 }
 
 func getLastMessage(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, messages[len(messages)-1])
+	row := db.QueryRow("SELECT * FROM Messages WHERE id = (SELECT MAX(id) FROM Messages)")
+
+	var message models.Message
+	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Errorf("albumsById %d: no such album")
+		}
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+	c.IndentedJSON(http.StatusOK, message)
 }
 
 func getLastMessagePage(c *gin.Context) {
