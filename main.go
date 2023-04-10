@@ -92,6 +92,7 @@ func runServer() {
 	})
 
 	router.GET("/messages", getMessagesByPage)
+	router.GET("/messages/all", getAllMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
 	router.GET("/messages/pages/last", getLastMessagePage)
@@ -141,17 +142,52 @@ func getMessagesByPage(c *gin.Context) {
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
 
-	for _, m := range messages {
-		if m.ID == id {
-			c.IndentedJSON(http.StatusOK, m)
-			return
+	row := db.QueryRow("SELECT * FROM Messages WHERE id = ?", id)
+
+	var message models.Message
+	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Errorf("albumsById %d: no such album")
 		}
+		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "message not found!"})
+	c.IndentedJSON(http.StatusOK, message)
+}
+
+// test func
+func getAllMessages(c *gin.Context) {
+	var messages []models.Message
+
+	rows, err := db.Query("SELECT * FROM Messages")
+	if err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var message models.Message
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+			fmt.Errorf("messagesFromDB %q: %v", err)
+		}
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+	c.IndentedJSON(http.StatusOK, messages)
 }
 
 func getLastMessage(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, messages[len(messages)-1])
+	row := db.QueryRow("SELECT * FROM Messages WHERE id = (SELECT MAX(id) FROM Messages)")
+
+	var message models.Message
+	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Errorf("albumsById %d: no such album")
+		}
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+	c.IndentedJSON(http.StatusOK, message)
 }
 
 func getLastMessagePage(c *gin.Context) {
