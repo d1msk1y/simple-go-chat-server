@@ -1,31 +1,26 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
 	"github.com/d1msk1y/simple-go-chat-server/pagination"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 )
 
 var conn *websocket.Conn
+var db *sql.DB
 
 // test slice of message structs
 var messages = []models.Message{
-	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
-	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
-	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
-	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
-
-	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
-	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
-	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
-	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
-
 	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
 	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
 	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
@@ -39,6 +34,26 @@ var wsupgrader = websocket.Upgrader{
 }
 
 func main() {
+	cfg := mysql.Config{
+		User:   os.Getenv("DBUSER"),
+		Passwd: os.Getenv("DBPASS"),
+		Net:    "tcp",
+		Addr:   "127.0.0.1:3306",
+		DBName: "chat",
+	}
+
+	var err error
+	db, err = sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pingErr := db.Ping()
+	if pingErr != nil {
+		log.Fatal(pingErr)
+	}
+	fmt.Println("Connected!")
+
 	runServer()
 }
 
