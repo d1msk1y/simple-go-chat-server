@@ -53,7 +53,7 @@ func main() {
 		log.Fatal(pingErr)
 	}
 	fmt.Println("Connected!")
-
+	//db.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)", messages[1].Username, messages[1].Time, messages[1].Message)
 	runServer()
 }
 
@@ -115,15 +115,26 @@ func runServer() {
 
 func postMessage(c *gin.Context) {
 	var newMessage models.Message
-
 	if err := c.BindJSON(&newMessage); err != nil {
+		fmt.Println(err)
 		return
 	}
-	messages = append(messages, newMessage)
+
+	result, err := db.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)", newMessage.Username, newMessage.Time, newMessage.Message)
+	if err != nil {
+		fmt.Errorf("addMessage ", err)
+	}
+	fmt.Println(result)
+	id, err := result.LastInsertId()
+	if err != nil {
+		fmt.Errorf("addMessage ", err)
+	}
+	fmt.Println(id)
 	c.IndentedJSON(http.StatusCreated, newMessage)
 
-	messageJson, _ := json.Marshal(messages[len(messages)-1])
+	messageJson, _ := json.Marshal(newMessage)
 	conn.WriteMessage(websocket.TextMessage, messageJson)
+
 }
 
 func getMessagesByPage(c *gin.Context) {
