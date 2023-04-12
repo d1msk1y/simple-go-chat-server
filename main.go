@@ -120,21 +120,21 @@ func postMessage(c *gin.Context) {
 		return
 	}
 
-	result, err := db.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)", newMessage.Username, newMessage.Time, newMessage.Message)
+	result, err := db.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)",
+		newMessage.Username,
+		newMessage.Time,
+		newMessage.Message)
 	if err != nil {
 		fmt.Errorf("addMessage ", err)
 	}
-	fmt.Println(result)
-	id, err := result.LastInsertId()
-	if err != nil {
-		fmt.Errorf("addMessage ", err)
-	}
-	fmt.Println(id)
+
+	rowsAffected, _ := result.RowsAffected()
+	fmt.Printf("Inserted %d rows into the Messages table\n", rowsAffected)
+
 	c.IndentedJSON(http.StatusCreated, newMessage)
 
 	messageJson, _ := json.Marshal(newMessage)
 	conn.WriteMessage(websocket.TextMessage, messageJson)
-
 }
 
 func getMessagesByPage(c *gin.Context) {
