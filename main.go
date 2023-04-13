@@ -13,7 +13,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 )
 
 var conn *websocket.Conn
@@ -194,7 +193,7 @@ func getLastMessage(c *gin.Context) {
 	var message models.Message
 	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Errorf("albumsById %d: no such album")
+			fmt.Errorf("lastMessage %d: nothing found")
 		}
 		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
@@ -202,12 +201,27 @@ func getLastMessage(c *gin.Context) {
 }
 
 func getLastMessagePage(c *gin.Context) {
-	paginatedMessages := pagination.Paginate(messages, pageSize, strconv.Itoa(1), c)
+	var messages []models.Message
 
+	rows, err := db.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ?", pageSize)
+	if err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var message models.Message
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+			fmt.Errorf("messagesFromDB %q: %v", err)
+		}
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
 	c.IndentedJSON(http.StatusOK, gin.H{
-		"messages": paginatedMessages,
+		"messages": messages,
 		"pageSize": pageSize,
-		"page":     1,
 		"total":    len(messages),
 	})
 }
