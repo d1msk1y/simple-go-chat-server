@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
-	"github.com/d1msk1y/simple-go-chat-server/pagination"
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
@@ -139,12 +138,30 @@ func postMessage(c *gin.Context) {
 
 func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
-	messages := messages
 
-	paginatedMessages := pagination.Paginate(messages, pageSize, pageId, c)
+	var messages []models.Message
 
+	parsedId, err := strconv.ParseInt(pageId, 6, 12)
+	startOffset := parsedId * 10
+
+	rows, err := db.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ? OFFSET ?", pageSize, startOffset)
+	if err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var message models.Message
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+			fmt.Errorf("messagesFromDB %q: %v", err)
+		}
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
 	c.IndentedJSON(http.StatusOK, gin.H{
-		"messages": paginatedMessages,
+		"messages": messages,
 		"pageSize": pageSize,
 		"total":    len(messages),
 	})
@@ -194,7 +211,7 @@ func getLastMessage(c *gin.Context) {
 	var message models.Message
 	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Errorf("albumsById %d: no such album")
+			fmt.Errorf("lastMessage %d: nothing found")
 		}
 		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
@@ -202,12 +219,27 @@ func getLastMessage(c *gin.Context) {
 }
 
 func getLastMessagePage(c *gin.Context) {
-	paginatedMessages := pagination.Paginate(messages, pageSize, strconv.Itoa(1), c)
+	var messages []models.Message
 
+	rows, err := db.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ?", pageSize)
+	if err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var message models.Message
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+			fmt.Errorf("messagesFromDB %q: %v", err)
+		}
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
 	c.IndentedJSON(http.StatusOK, gin.H{
-		"messages": paginatedMessages,
+		"messages": messages,
 		"pageSize": pageSize,
-		"page":     1,
 		"total":    len(messages),
 	})
 }
