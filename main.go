@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
-	"github.com/d1msk1y/simple-go-chat-server/pagination"
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 var conn *websocket.Conn
@@ -138,12 +138,30 @@ func postMessage(c *gin.Context) {
 
 func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
-	messages := messages
 
-	paginatedMessages := pagination.Paginate(messages, pageSize, pageId, c)
+	var messages []models.Message
 
+	parsedId, err := strconv.ParseInt(pageId, 6, 12)
+	startOffset := parsedId * 10
+
+	rows, err := db.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ? OFFSET ?", pageSize, startOffset)
+	if err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var message models.Message
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+			fmt.Errorf("messagesFromDB %q: %v", err)
+		}
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Errorf("messagesFromDB %q: %v", err)
+	}
 	c.IndentedJSON(http.StatusOK, gin.H{
-		"messages": paginatedMessages,
+		"messages": messages,
 		"pageSize": pageSize,
 		"total":    len(messages),
 	})
