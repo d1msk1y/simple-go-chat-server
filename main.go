@@ -8,6 +8,7 @@ import (
 	"github.com/d1msk1y/simple-go-chat-server/models"
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
+	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
@@ -17,15 +18,10 @@ import (
 
 var conn *websocket.Conn
 var db *sql.DB
+var router = gin.Default()
+var secretKey = []byte(os.Getenv("CHATSECRET"))
 
-// test slice of message structs
-var messages = []models.Message{
-	{ID: "0", Username: "d1msk1y 1", Time: "00:00", Message: "Hellow World!"},
-	{ID: "1", Username: "d1msk1y 2", Time: "00:01", Message: "Hellow d1msk1y!"},
-	{ID: "2", Username: "d1msk1y 1", Time: "00:02", Message: "How ya doin?"},
-	{ID: "3", Username: "d1msk1y 2", Time: "00:03", Message: "aight, and u?"},
-}
-var pageSize int = 10
+var pageSize = 10
 
 var wsupgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -33,6 +29,65 @@ var wsupgrader = websocket.Upgrader{
 }
 
 func main() {
+	err := tryConnectDB()
+	if err != nil {
+		return
+	}
+	runServer()
+}
+
+func generateJWT() (string, error) {
+	token := jwt.New(jwt.SigningMethodEdDSA)
+
+	tokenString, err := token.SignedString(secretKey)
+	if err != nil {
+		return "Error occurred while signing JWT", err
+	}
+
+	return tokenString, nil
+}
+
+func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
+	return gin.HandlerFunc(func(c *gin.Context) {
+		tokenString := c.GetHeader("Token")
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			return
+		}
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			_, ok := token.Method.(*jwt.SigningMethodECDSA)
+			if !ok {
+				c.Writer.WriteHeader(http.StatusUnauthorized)
+				_, err := c.Writer.Write([]byte("You're Unauthorized!"))
+				if err != nil {
+					return nil, err
+				}
+			}
+			return "", nil
+		})
+
+		if err != nil {
+			c.Writer.WriteHeader(http.StatusUnauthorized)
+			_, err := c.Writer.Write([]byte("You're Unauthorized!"))
+			if err != nil {
+				return
+			}
+		}
+
+		if token.Valid {
+			endpointHandler(c)
+		} else {
+			c.Writer.WriteHeader(http.StatusUnauthorized)
+			_, err := c.Writer.Write([]byte("You're Unauthorized due to invalid token"))
+			if err != nil {
+				return
+			}
+		}
+	})
+}
+
+func tryConnectDB() error {
 	cfg := mysql.Config{
 		User:   os.Getenv("DBUSER"),
 		Passwd: os.Getenv("DBPASS"),
@@ -45,15 +100,16 @@ func main() {
 	db, err = sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		log.Fatal(err)
+		return err
 	}
 
 	pingErr := db.Ping()
 	if pingErr != nil {
 		log.Fatal(pingErr)
+		return err
 	}
 	fmt.Println("Connected!")
-	//db.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)", messages[1].Username, messages[1].Time, messages[1].Message)
-	runServer()
+	return nil
 }
 
 func wshandler(w http.ResponseWriter, r *http.Request) {
@@ -66,8 +122,6 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func runServer() {
-	router := gin.Default()
-
 	limiterInstance := limiter.GetLimiter()
 
 	router.Use(func(c *gin.Context) {
@@ -91,7 +145,7 @@ func runServer() {
 	})
 
 	router.GET("/messages", getMessagesByPage)
-	router.GET("/messages/all", getAllMessages)
+	router.GET("/messages/all", verifyJWT(getAllMessages))
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
 	router.GET("/messages/pages/last", getLastMessagePage)
