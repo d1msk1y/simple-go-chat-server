@@ -18,6 +18,7 @@ import (
 
 var conn *websocket.Conn
 var db *sql.DB
+var router = gin.Default()
 var secretKey = []byte(os.Getenv("CHATSECRET"))
 
 var pageSize = 10
@@ -44,6 +45,46 @@ func generateJWT() (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
+	return gin.HandlerFunc(func(c *gin.Context) {
+		tokenString := c.GetHeader("Token")
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			return
+		}
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			_, ok := token.Method.(*jwt.SigningMethodECDSA)
+			if !ok {
+				c.Writer.WriteHeader(http.StatusUnauthorized)
+				_, err := c.Writer.Write([]byte("You're Unauthorized!"))
+				if err != nil {
+					return nil, err
+				}
+			}
+			return "", nil
+		})
+
+		if err != nil {
+			c.Writer.WriteHeader(http.StatusUnauthorized)
+			_, err := c.Writer.Write([]byte("You're Unauthorized!"))
+			if err != nil {
+				return
+			}
+		}
+
+		if token.Valid {
+			endpointHandler(c)
+		} else {
+			c.Writer.WriteHeader(http.StatusUnauthorized)
+			_, err := c.Writer.Write([]byte("You're Unauthorized due to invalid token"))
+			if err != nil {
+				return
+			}
+		}
+	})
 }
 
 func tryConnectDB() error {
@@ -81,8 +122,6 @@ func wshandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func runServer() {
-	router := gin.Default()
-
 	limiterInstance := limiter.GetLimiter()
 
 	router.Use(func(c *gin.Context) {
@@ -106,7 +145,7 @@ func runServer() {
 	})
 
 	router.GET("/messages", getMessagesByPage)
-	router.GET("/messages/all", getAllMessages)
+	router.GET("/messages/all", verifyJWT(getAllMessages))
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
 	router.GET("/messages/pages/last", getLastMessagePage)
