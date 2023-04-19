@@ -19,6 +19,7 @@ import (
 var conn *websocket.Conn
 var db *sql.DB
 var router = gin.Default()
+
 var secretKey = []byte(os.Getenv("CHATSECRET"))
 
 var pageSize = 10
@@ -37,9 +38,12 @@ func main() {
 }
 
 func generateJWT() (string, error) {
-	token := jwt.New(jwt.SigningMethodEdDSA)
+	token := jwt.New(jwt.SigningMethodHS256)
+	fmt.Println(secretKey)
+	fmt.Println("TOKEN:", token)
 
 	tokenString, err := token.SignedString(secretKey)
+	fmt.Println("TOKENSTRING: ", tokenString)
 	if err != nil {
 		return "Error occurred while signing JWT", err
 	}
@@ -89,11 +93,12 @@ func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
 
 func tryConnectDB() error {
 	cfg := mysql.Config{
-		User:   os.Getenv("DBUSER"),
-		Passwd: os.Getenv("DBPASS"),
-		Net:    "tcp",
-		Addr:   "127.0.0.1:3306",
-		DBName: "chat",
+		User:                 os.Getenv("DBUSER"),
+		Passwd:               os.Getenv("DBPASS"),
+		Net:                  "tcp",
+		Addr:                 "127.0.0.1:3306",
+		DBName:               "chat",
+		AllowNativePasswords: true,
 	}
 
 	var err error
@@ -144,6 +149,7 @@ func runServer() {
 		c.Next()
 	})
 
+	router.GET("/token", getJwtToken)
 	router.GET("/messages", getMessagesByPage)
 	router.GET("/messages/all", verifyJWT(getAllMessages))
 	router.GET("/messages/:id", getMessageByID)
@@ -219,6 +225,16 @@ func getMessagesByPage(c *gin.Context) {
 		"pageSize": pageSize,
 		"total":    len(messages),
 	})
+}
+
+func getJwtToken(c *gin.Context) {
+	token, err := generateJWT()
+	if err != nil {
+		fmt.Errorf("Erorr occurred: ", err)
+	}
+
+	c.IndentedJSON(http.StatusOK, token)
+
 }
 
 func getMessageByID(c *gin.Context) {
