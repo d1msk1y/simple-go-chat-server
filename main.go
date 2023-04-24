@@ -156,7 +156,7 @@ func runServer() {
 	router.GET("/messages/pages/:page", getMessagesByPage)
 	router.GET("/messages/pages/last", getLastMessagePage)
 	router.GET("/messages/last", getLastMessage)
-	router.POST("/messages", postMessage)
+	router.POST("/messages", verifyJWT(postMessage))
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
