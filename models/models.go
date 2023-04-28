@@ -6,3 +6,9 @@ type Message struct {
 	Time     string `json:"time"`
 	Message  string `json:"message"`
 }
+
+type User struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	JWT      string `json:"jwt"`
+}
