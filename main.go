@@ -150,14 +150,15 @@ func runServer() {
 		c.Next()
 	})
 
-	router.GET("/token", getJwtToken)
 	router.GET("/messages", getMessagesByPage)
 	router.GET("/messages/all", verifyJWT(getAllMessages))
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
 	router.GET("/messages/pages/last", getLastMessagePage)
 	router.GET("/messages/last", getLastMessage)
+
 	router.POST("/messages", postMessage)
+	router.GET("/auth", addNewUser)
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
@@ -171,6 +172,27 @@ func runServer() {
 	if err != nil {
 		return
 	}
+}
+
+func addNewUser(c *gin.Context) {
+	token, err := generateJWT()
+	if err != nil {
+		fmt.Errorf("Erorr occurred: ", err)
+	}
+
+	username := c.GetHeader("Username")
+
+	result, err := db.Exec("INSERT INTO Users (Username, JWT) VALUES (?, ?)",
+		username,
+		token)
+	if err != nil {
+		fmt.Errorf("addMessage ", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	fmt.Printf("Inserted %d rows into the Messages table\n", rowsAffected)
+
+	c.IndentedJSON(http.StatusOK, token)
 }
 
 func postMessage(c *gin.Context) {
@@ -226,16 +248,6 @@ func getMessagesByPage(c *gin.Context) {
 		"pageSize": pageSize,
 		"total":    len(messages),
 	})
-}
-
-func getJwtToken(c *gin.Context) {
-	token, err := generateJWT()
-	if err != nil {
-		fmt.Errorf("Erorr occurred: ", err)
-	}
-
-	c.IndentedJSON(http.StatusOK, token)
-
 }
 
 func getMessageByID(c *gin.Context) {
