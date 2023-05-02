@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
 var conn *websocket.Conn
@@ -37,9 +38,13 @@ func main() {
 	runServer()
 }
 
-func generateJWT() (string, error) {
+func generateJWT(username string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
-	fmt.Println(secretKey)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["exp"] = time.Now().Add(10 * time.Minute)
+	claims["authorized"] = true
+	claims["user"] = username
+
 	fmt.Println("TOKEN:", token)
 
 	tokenString, err := token.SignedString(secretKey)
@@ -61,7 +66,7 @@ func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
 		fmt.Println("Token: ", tokenString)
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			_, ok := token.Method.(*jwt.SigningMethodECDSA)
+			_, ok := token.Method.(*jwt.SigningMethodHMAC)
 			if !ok {
 				c.Writer.WriteHeader(http.StatusUnauthorized)
 				_, err := c.Writer.Write([]byte("You're Unauthorized!"))
@@ -175,12 +180,11 @@ func runServer() {
 }
 
 func addNewUser(c *gin.Context) {
-	token, err := generateJWT()
+	username := c.GetHeader("Username")
+	token, err := generateJWT(username)
 	if err != nil {
 		fmt.Errorf("Erorr occurred: ", err)
 	}
-
-	username := c.GetHeader("Username")
 
 	result, err := db.Exec("INSERT INTO Users (Username, JWT) VALUES (?, ?)",
 		username,
