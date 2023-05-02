@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
 var conn *websocket.Conn
@@ -37,9 +38,13 @@ func main() {
 	runServer()
 }
 
-func generateJWT() (string, error) {
+func generateJWT(username string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
-	fmt.Println(secretKey)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["exp"] = time.Now().Add(10 * time.Minute)
+	claims["authorized"] = true
+	claims["user"] = username
+
 	fmt.Println("TOKEN:", token)
 
 	tokenString, err := token.SignedString(secretKey)
@@ -61,7 +66,7 @@ func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
 		fmt.Println("Token: ", tokenString)
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			_, ok := token.Method.(*jwt.SigningMethodECDSA)
+			_, ok := token.Method.(*jwt.SigningMethodHMAC)
 			if !ok {
 				c.Writer.WriteHeader(http.StatusUnauthorized)
 				_, err := c.Writer.Write([]byte("You're Unauthorized!"))
@@ -158,7 +163,7 @@ func runServer() {
 	router.GET("/messages/last", getLastMessage)
 
 	router.POST("/messages", postMessage)
-	router.GET("/auth", addNewUser)
+	router.GET("/auth", tryAuthUser)
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
@@ -174,25 +179,46 @@ func runServer() {
 	}
 }
 
-func addNewUser(c *gin.Context) {
-	token, err := generateJWT()
+func addNewUser(username string) (string, error) {
+	token, err := generateJWT(username)
 	if err != nil {
-		fmt.Errorf("Erorr occurred: ", err)
+		return "", fmt.Errorf("Error occurred: ", err)
 	}
-
-	username := c.GetHeader("Username")
 
 	result, err := db.Exec("INSERT INTO Users (Username, JWT) VALUES (?, ?)",
 		username,
 		token)
 	if err != nil {
-		fmt.Errorf("addMessage ", err)
+		return "", fmt.Errorf("addMessage ", err)
 	}
 
 	rowsAffected, _ := result.RowsAffected()
 	fmt.Printf("Inserted %d rows into the Messages table\n", rowsAffected)
 
-	c.IndentedJSON(http.StatusOK, token)
+	return token, nil
+}
+
+func tryAuthUser(c *gin.Context) {
+	username := c.GetHeader("Username")
+
+	row := db.QueryRow("SELECT * FROM Users WHERE username = ?;", username)
+
+	var user models.User
+	err := row.Scan(&user.Username, &user.JWT)
+	if err != nil {
+		fmt.Errorf("userFromDB %q: %v", err)
+	}
+
+	if err == sql.ErrNoRows {
+		fmt.Errorf("userById %d: no such user, authorizing the new one...")
+		token, err := addNewUser(username)
+		if err != nil {
+			c.IndentedJSON(http.StatusInternalServerError, "couldn't authorize the new user")
+		}
+		c.IndentedJSON(http.StatusOK, token)
+	} else {
+		c.IndentedJSON(http.StatusOK, "User authorized!")
+	}
 }
 
 func postMessage(c *gin.Context) {
@@ -258,7 +284,7 @@ func getMessageByID(c *gin.Context) {
 	var message models.Message
 	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Errorf("albumsById %d: no such album")
+			fmt.Errorf("messageById %d: no such message")
 		}
 		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
