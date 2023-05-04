@@ -206,17 +206,20 @@ func tryAuthUser(c *gin.Context) {
 	var user models.User
 	err := row.Scan(&user.Username, &user.JWT)
 	if err != nil {
-		fmt.Errorf("userFromDB %q: %v", err)
+		fmt.Println("userFromDB %q: %v", err)
 	}
 
 	if err == sql.ErrNoRows {
-		fmt.Errorf("userById %d: no such user, authorizing the new one...")
+		fmt.Println("userById %d: no such user, authorizing the new one...")
 		token, err := addNewUser(username)
 		if err != nil {
-			c.IndentedJSON(http.StatusInternalServerError, "couldn't authorize the new user")
+			fmt.Println("couldn't authorize the new user")
 		}
 		c.IndentedJSON(http.StatusOK, token)
 	} else {
+		fmt.Println("Authorizing...")
+		token := c.GetHeader("Token")
+		fmt.Println("User token: ", token)
 		c.IndentedJSON(http.StatusOK, "User authorized!")
 	}
 }
