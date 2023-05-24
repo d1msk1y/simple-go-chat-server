@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 )
 
 var conn *websocket.Conn
@@ -41,7 +40,6 @@ func main() {
 func generateJWT(username string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
-	claims["exp"] = time.Now().Add(10 * time.Minute)
 	claims["authorized"] = true
 	claims["user"] = username
 
@@ -66,15 +64,10 @@ func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
 		fmt.Println("Token: ", tokenString)
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			_, ok := token.Method.(*jwt.SigningMethodHMAC)
-			if !ok {
-				c.Writer.WriteHeader(http.StatusUnauthorized)
-				_, err := c.Writer.Write([]byte("You're Unauthorized!"))
-				if err != nil {
-					return nil, err
-				}
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
-			return "", nil
+			return secretKey, nil
 		})
 
 		if err != nil {
@@ -156,11 +149,9 @@ func runServer() {
 	})
 
 	router.GET("/messages", getMessagesByPage)
-	router.GET("/messages/all", verifyJWT(getAllMessages))
+	router.GET("/messages/all", getAllMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
-	router.GET("/messages/pages/last", getLastMessagePage)
-	router.GET("/messages/last", getLastMessage)
 
 	router.POST("/messages", postMessage)
 	router.GET("/auth", tryAuthUser)
@@ -215,12 +206,14 @@ func tryAuthUser(c *gin.Context) {
 		if err != nil {
 			fmt.Println("couldn't authorize the new user")
 		}
-		c.IndentedJSON(http.StatusOK, token)
+		newUser := models.User{
+			Username: username,
+			JWT:      token,
+		}
+		c.IndentedJSON(http.StatusOK, newUser)
 	} else {
-		fmt.Println("Authorizing...")
-		token := c.GetHeader("Token")
-		fmt.Println("User token: ", token)
-		c.IndentedJSON(http.StatusOK, "User authorized!")
+		//token = user.JWT
+		c.IndentedJSON(http.StatusOK, user)
 	}
 }
 
@@ -282,7 +275,7 @@ func getMessagesByPage(c *gin.Context) {
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
 
-	row := db.QueryRow("SELECT * FROM Messages WHERE id = ?", id)
+	row := db.QueryRow("SELECT * FROM Messages ORDER BY ID desc LIMIT ?, 1;", id)
 
 	var message models.Message
 	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
@@ -315,43 +308,4 @@ func getAllMessages(c *gin.Context) {
 		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
 	c.IndentedJSON(http.StatusOK, messages)
-}
-
-func getLastMessage(c *gin.Context) {
-	row := db.QueryRow("SELECT * FROM Messages WHERE id = (SELECT MAX(id) FROM Messages)")
-
-	var message models.Message
-	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
-		if err == sql.ErrNoRows {
-			fmt.Errorf("lastMessage %d: nothing found")
-		}
-		fmt.Errorf("messagesFromDB %q: %v", err)
-	}
-	c.IndentedJSON(http.StatusOK, message)
-}
-
-func getLastMessagePage(c *gin.Context) {
-	var messages []models.Message
-
-	rows, err := db.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ?", pageSize)
-	if err != nil {
-		fmt.Errorf("messagesFromDB %q: %v", err)
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-		var message models.Message
-		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
-			fmt.Errorf("messagesFromDB %q: %v", err)
-		}
-		messages = append(messages, message)
-	}
-	if err := rows.Err(); err != nil {
-		fmt.Errorf("messagesFromDB %q: %v", err)
-	}
-	c.IndentedJSON(http.StatusOK, gin.H{
-		"messages": messages,
-		"pageSize": pageSize,
-		"total":    len(messages),
-	})
 }
