@@ -224,6 +224,7 @@ func postMessage(c *gin.Context) {
 		return
 	}
 
+	// Assign message to a specific room
 	result, err := db.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)",
 		newMessage.Username,
 		newMessage.Time,
