@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/d1msk1y/simple-go-chat-server/Database"
+	"github.com/d1msk1y/simple-go-chat-server/database"
 	"github.com/d1msk1y/simple-go-chat-server/models"
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -26,7 +26,7 @@ func PostRoom(c *gin.Context) {
 	}
 
 	// Assign message to a specific room
-	result, err := Database.DB.Exec("INSERT INTO Rooms (code) VALUES (?);",
+	result, err := database.DB.Exec("INSERT INTO Rooms (code) VALUES (?);",
 		newRoom.Code)
 	if err != nil {
 		fmt.Errorf("addMessage ", err)
