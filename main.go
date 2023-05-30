@@ -4,33 +4,27 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/d1msk1y/simple-go-chat-server/database"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
+	multi_room "github.com/d1msk1y/simple-go-chat-server/multi-room"
+	"github.com/d1msk1y/simple-go-chat-server/net"
 	"github.com/gin-gonic/gin"
-	"github.com/go-sql-driver/mysql"
 	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/websocket"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
 )
 
-var conn *websocket.Conn
-var db *sql.DB
 var router = gin.Default()
 
 var secretKey = []byte(os.Getenv("CHATSECRET"))
 
 var pageSize = 10
 
-var wsupgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
 func main() {
-	err := tryConnectDB()
+	err := database.TryConnectDB()
 	if err != nil {
 		return
 	}
@@ -90,41 +84,6 @@ func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
 	})
 }
 
-func tryConnectDB() error {
-	cfg := mysql.Config{
-		User:                 os.Getenv("DBUSER"),
-		Passwd:               os.Getenv("DBPASS"),
-		Net:                  "tcp",
-		Addr:                 "127.0.0.1:3306",
-		DBName:               "chat",
-		AllowNativePasswords: true,
-	}
-
-	var err error
-	db, err = sql.Open("mysql", cfg.FormatDSN())
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-
-	pingErr := db.Ping()
-	if pingErr != nil {
-		log.Fatal(pingErr)
-		return err
-	}
-	fmt.Println("Connected!")
-	return nil
-}
-
-func wshandler(w http.ResponseWriter, r *http.Request) {
-	var err error
-	conn, err = wsupgrader.Upgrade(w, r, nil)
-	if err != nil {
-		fmt.Println("Failed to set websocket upgradeL %+v", err)
-		return
-	}
-}
-
 func runServer() {
 	limiterInstance := limiter.GetLimiter()
 
@@ -152,6 +111,7 @@ func runServer() {
 	router.GET("/messages/all", getAllMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
+	router.GET("/rooms/new", multi_room.PostRoom)
 
 	router.POST("/messages", postMessage)
 	router.GET("/auth", tryAuthUser)
@@ -161,7 +121,7 @@ func runServer() {
 	})
 
 	router.GET("/ws", func(c *gin.Context) {
-		wshandler(c.Writer, c.Request)
+		net.WSHandler(c.Writer, c.Request)
 	})
 
 	err := router.Run("localhost:8080")
@@ -176,7 +136,7 @@ func addNewUser(username string) (string, error) {
 		return "", fmt.Errorf("Error occurred: ", err)
 	}
 
-	result, err := db.Exec("INSERT INTO Users (Username, JWT) VALUES (?, ?)",
+	result, err := database.DB.Exec("INSERT INTO Users (Username, JWT) VALUES (?, ?)",
 		username,
 		token)
 	if err != nil {
@@ -192,7 +152,7 @@ func addNewUser(username string) (string, error) {
 func tryAuthUser(c *gin.Context) {
 	username := c.GetHeader("Username")
 
-	row := db.QueryRow("SELECT * FROM Users WHERE username = ?;", username)
+	row := database.DB.QueryRow("SELECT * FROM Users WHERE username = ?;", username)
 
 	var user models.User
 	err := row.Scan(&user.Username, &user.JWT)
@@ -224,7 +184,8 @@ func postMessage(c *gin.Context) {
 		return
 	}
 
-	result, err := db.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)",
+	// Assign message to a specific room
+	result, err := database.DB.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)",
 		newMessage.Username,
 		newMessage.Time,
 		newMessage.Message)
@@ -238,18 +199,17 @@ func postMessage(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, newMessage)
 
 	messageJson, _ := json.Marshal(newMessage)
-	conn.WriteMessage(websocket.TextMessage, messageJson)
+	net.Conn.WriteMessage(websocket.TextMessage, messageJson)
 }
 
 func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
-
 	var messages []models.Message
 
 	parsedId, err := strconv.ParseInt(pageId, 6, 12)
 	startOffset := parsedId * 10
 
-	rows, err := db.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ? OFFSET ?", pageSize, startOffset)
+	rows, err := database.DB.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ? OFFSET ?", pageSize, startOffset)
 	if err != nil {
 		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
@@ -275,10 +235,10 @@ func getMessagesByPage(c *gin.Context) {
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
 
-	row := db.QueryRow("SELECT * FROM Messages ORDER BY ID desc LIMIT ?, 1;", id)
+	row := database.DB.QueryRow("SELECT * FROM Messages ORDER BY ID desc LIMIT ?, 1;", id)
 
 	var message models.Message
-	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomId); err != nil {
 		if err == sql.ErrNoRows {
 			fmt.Errorf("messageById %d: no such message")
 		}
@@ -291,7 +251,7 @@ func getMessageByID(c *gin.Context) {
 func getAllMessages(c *gin.Context) {
 	var messages []models.Message
 
-	rows, err := db.Query("SELECT * FROM Messages")
+	rows, err := database.DB.Query("SELECT * FROM Messages")
 	if err != nil {
 		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
