@@ -7,6 +7,7 @@ import (
 	"github.com/d1msk1y/simple-go-chat-server/database"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
+	multi_room "github.com/d1msk1y/simple-go-chat-server/multi-room"
 	"github.com/d1msk1y/simple-go-chat-server/net"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
@@ -110,6 +111,7 @@ func runServer() {
 	router.GET("/messages/all", getAllMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
+	router.GET("/rooms/new", multi_room.PostRoom)
 
 	router.POST("/messages", postMessage)
 	router.GET("/auth", tryAuthUser)

@@ -25,7 +25,6 @@ func PostRoom(c *gin.Context) {
 		Code: GenerateRoomToken(roomTokenLength),
 	}
 
-	// Assign message to a specific room
 	result, err := database.DB.Exec("INSERT INTO Rooms (code) VALUES (?);",
 		newRoom.Code)
 	if err != nil {
