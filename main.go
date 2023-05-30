@@ -238,7 +238,7 @@ func getMessageByID(c *gin.Context) {
 	row := database.DB.QueryRow("SELECT * FROM Messages ORDER BY ID desc LIMIT ?, 1;", id)
 
 	var message models.Message
-	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
+	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomId); err != nil {
 		if err == sql.ErrNoRows {
 			fmt.Errorf("messageById %d: no such message")
 		}
