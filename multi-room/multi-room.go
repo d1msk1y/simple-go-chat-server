@@ -2,6 +2,7 @@ package multi_room
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/database"
@@ -21,18 +22,26 @@ func GenerateRoomToken(length int) string {
 }
 
 func PostRoom(c *gin.Context) {
-	var newRoom models.Room = models.Room{
+	var roomCode = models.Room{
 		Code: GenerateRoomToken(roomTokenLength),
 	}
 
 	result, err := database.DB.Exec("INSERT INTO Rooms (code) VALUES (?);",
-		newRoom.Code)
+		roomCode.Code)
 	if err != nil {
-		fmt.Errorf("addMessage ", err)
+		fmt.Errorf("addItem ", err)
 	}
 
 	rowsAffected, _ := result.RowsAffected()
-	fmt.Printf("Inserted %d rows into the Messages table\n", rowsAffected)
+	fmt.Printf("Inserted %d rows into the table\n", rowsAffected)
 
+	row := database.DB.QueryRow("SELECT * FROM Rooms ORDER BY ID desc LIMIT ?, 1;", 0)
+	var newRoom models.Room
+	if err := row.Scan(&newRoom.ID, &newRoom.Code); err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Errorf("no such room")
+		}
+		fmt.Errorf("roomFromDB %q: %v", err)
+	}
 	c.IndentedJSON(http.StatusCreated, newRoom)
 }
