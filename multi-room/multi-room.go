@@ -21,6 +21,10 @@ func GenerateRoomToken(length int) string {
 	return hex.EncodeToString(b)
 }
 
+func GetRoomID(c *gin.Context) string {
+	return c.GetHeader("RoomID")
+}
+
 func PostRoom(c *gin.Context) {
 	var roomCode = models.Room{
 		Code: GenerateRoomToken(roomTokenLength),

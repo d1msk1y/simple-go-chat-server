@@ -205,11 +205,12 @@ func postMessage(c *gin.Context) {
 func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
 	var messages []models.Message
+	roomId := multi_room.GetRoomID(c)
 
 	parsedId, err := strconv.ParseInt(pageId, 6, 12)
 	startOffset := parsedId * 10
 
-	rows, err := database.DB.Query("SELECT * FROM Messages ORDER BY ID DESC LIMIT ? OFFSET ?", pageSize, startOffset)
+	rows, err := database.DB.Query("SELECT * FROM Messages Where roomd_id = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomId, pageSize, startOffset)
 	if err != nil {
 		fmt.Errorf("messagesFromDB %q: %v", err)
 	}
@@ -234,8 +235,9 @@ func getMessagesByPage(c *gin.Context) {
 
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
+	roomId := multi_room.GetRoomID(c)
 
-	row := database.DB.QueryRow("SELECT * FROM Messages ORDER BY ID desc LIMIT ?, 1;", id)
+	row := database.DB.QueryRow("SELECT * FROM Messages WHERE room_id = ? ORDER BY ID desc LIMIT ?, 1;", roomId, id)
 
 	var message models.Message
 	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomId); err != nil {
