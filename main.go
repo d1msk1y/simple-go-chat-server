@@ -111,7 +111,9 @@ func runServer() {
 	router.GET("/messages/all", getAllMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
+
 	router.GET("/rooms/new", multi_room.PostRoom)
+	router.GET("/rooms/join", multi_room.GetRoomByCode)
 
 	router.POST("/messages", postMessage)
 	router.GET("/auth", tryAuthUser)

@@ -49,3 +49,17 @@ func PostRoom(c *gin.Context) {
 	}
 	c.IndentedJSON(http.StatusCreated, newRoom)
 }
+
+func GetRoomByCode(c *gin.Context) {
+	roomCode := c.GetHeader("RoomCode")
+
+	row := database.DB.QueryRow("SELECT * FROM Rooms WHERE code = ?", roomCode)
+	var room models.Room
+	if err := row.Scan(&room.ID, &room.Code); err != nil {
+		if err == sql.ErrNoRows {
+			fmt.Errorf("no such room")
+		}
+		fmt.Errorf("roomFromDB %q: %v", err)
+	}
+	c.IndentedJSON(http.StatusCreated, room)
+}
