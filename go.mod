@@ -7,7 +7,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/websocket v1.5.0
-	github.com/ulule/limiter/v3 v3.11.1
+	github.com/ulule/limiter/v3 v3.11.2
 )
 
 require (
