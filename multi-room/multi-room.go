@@ -25,16 +25,18 @@ func GetRoomID(c *gin.Context) string {
 	return c.GetHeader("RoomID")
 }
 
-func GetRoomFromDB(query string, args interface{}) (models.Room, error) {
+func GetRoomFromDB(c *gin.Context, query string, args interface{}) models.Room {
 	row := database.DB.QueryRow(query, args)
 	var room models.Room
 	if err := row.Scan(&room.ID, &room.Code); err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Errorf("no such room")
+			c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "No such room"})
+			return models.Room{}
 		}
-		fmt.Errorf("roomFromDB %q: %v", err)
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Couldn't get room from DB"})
+		return models.Room{}
 	}
-	return room, nil
+	return room
 }
 
 func PostRoom(c *gin.Context) {
@@ -52,22 +54,18 @@ func PostRoom(c *gin.Context) {
 	fmt.Printf("Inserted %d rows into the table\n", rowsAffected)
 
 	query := "SELECT * FROM Rooms ORDER BY ID desc LIMIT ?, 1;"
-	newRoom, err := GetRoomFromDB(query, 0)
-	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Error occurred"})
-		return
-	}
-
+	newRoom := GetRoomFromDB(c, query, 0)
 	c.IndentedJSON(http.StatusCreated, newRoom)
 }
 
 func GetRoomByCode(c *gin.Context) {
 	roomCode := c.GetHeader("RoomCode")
+	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomCode)
+	c.IndentedJSON(http.StatusCreated, room)
+}
 
-	room, err := GetRoomFromDB("SELECT * FROM Rooms WHERE code = ?", roomCode)
-	if err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Error occurred"})
-		return
-	}
+func GetRoomByID(c *gin.Context) {
+	roomID := c.GetHeader("RoomID")
+	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomID)
 	c.IndentedJSON(http.StatusCreated, room)
 }
