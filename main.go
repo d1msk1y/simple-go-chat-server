@@ -4,22 +4,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/d1msk1y/simple-go-chat-server/auth"
 	"github.com/d1msk1y/simple-go-chat-server/database"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
 	multi_room "github.com/d1msk1y/simple-go-chat-server/multi-room"
 	"github.com/d1msk1y/simple-go-chat-server/net"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/websocket"
 	"net/http"
-	"os"
 	"strconv"
 )
 
 var router = gin.Default()
-
-var secretKey = []byte(os.Getenv("CHATSECRET"))
 
 var pageSize = 10
 
@@ -29,59 +26,6 @@ func main() {
 		return
 	}
 	runServer()
-}
-
-func generateJWT(username string) (string, error) {
-	token := jwt.New(jwt.SigningMethodHS256)
-	claims := token.Claims.(jwt.MapClaims)
-	claims["authorized"] = true
-	claims["user"] = username
-
-	fmt.Println("TOKEN:", token)
-
-	tokenString, err := token.SignedString(secretKey)
-	fmt.Println("TOKENSTRING: ", tokenString)
-	if err != nil {
-		return "Error occurred while signing JWT", err
-	}
-
-	return tokenString, nil
-}
-
-func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
-		tokenString := c.GetHeader("Token")
-		if tokenString == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			return
-		}
-		fmt.Println("Token: ", tokenString)
-
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-			}
-			return secretKey, nil
-		})
-
-		if err != nil {
-			c.Writer.WriteHeader(http.StatusUnauthorized)
-			_, err := c.Writer.Write([]byte("You're Unauthorized!"))
-			if err != nil {
-				return
-			}
-		}
-
-		if token.Valid {
-			endpointHandler(c)
-		} else {
-			c.Writer.WriteHeader(http.StatusUnauthorized)
-			_, err := c.Writer.Write([]byte("You're Unauthorized due to invalid token"))
-			if err != nil {
-				return
-			}
-		}
-	})
 }
 
 func runServer() {
@@ -107,17 +51,16 @@ func runServer() {
 		c.Next()
 	})
 
-	router.GET("/messages", getMessagesByPage)
 	router.GET("/messages/all", getAllMessages)
 	router.GET("/messages/:id", getMessageByID)
 	router.GET("/messages/pages/:page", getMessagesByPage)
 
 	router.GET("/rooms/new", multi_room.PostRoom)
-	router.GET("/rooms/:code", multi_room.GetRoomByCode)
-	router.GET("/rooms/:id", multi_room.GetRoomByID)
+	router.GET("/rooms/code/:code", multi_room.GetRoomByCode)
+	router.GET("/rooms/id/:id", multi_room.GetRoomByID)
 
 	router.POST("/messages", postMessage)
-	router.GET("/auth", tryAuthUser)
+	router.GET("/auth", auth.TryAuthUser)
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
@@ -130,53 +73,6 @@ func runServer() {
 	err := router.Run("localhost:8080")
 	if err != nil {
 		return
-	}
-}
-
-func addNewUser(username string) (string, error) {
-	token, err := generateJWT(username)
-	if err != nil {
-		return "", fmt.Errorf("Error occurred: ", err)
-	}
-
-	result, err := database.DB.Exec("INSERT INTO Users (Username, JWT) VALUES (?, ?)",
-		username,
-		token)
-	if err != nil {
-		return "", fmt.Errorf("addMessage ", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	fmt.Printf("Inserted %d rows into the Messages table\n", rowsAffected)
-
-	return token, nil
-}
-
-func tryAuthUser(c *gin.Context) {
-	username := c.GetHeader("Username")
-
-	row := database.DB.QueryRow("SELECT * FROM Users WHERE username = ?;", username)
-
-	var user models.User
-	err := row.Scan(&user.Username, &user.JWT)
-	if err != nil {
-		fmt.Println("userFromDB %q: %v", err)
-	}
-
-	if err == sql.ErrNoRows {
-		fmt.Println("userById %d: no such user, authorizing the new one...")
-		token, err := addNewUser(username)
-		if err != nil {
-			fmt.Println("couldn't authorize the new user")
-		}
-		newUser := models.User{
-			Username: username,
-			JWT:      token,
-		}
-		c.IndentedJSON(http.StatusOK, newUser)
-	} else {
-		//token = user.JWT
-		c.IndentedJSON(http.StatusOK, user)
 	}
 }
 
