@@ -59,13 +59,13 @@ func PostRoom(c *gin.Context) {
 }
 
 func GetRoomByCode(c *gin.Context) {
-	roomCode := c.GetHeader("RoomCode")
+	roomCode := c.Param("code")
 	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomCode)
 	c.IndentedJSON(http.StatusCreated, room)
 }
 
 func GetRoomByID(c *gin.Context) {
-	roomID := c.GetHeader("RoomID")
+	roomID := c.Param("id")
 	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomID)
 	c.IndentedJSON(http.StatusCreated, room)
 }
