@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/database"
+	"github.com/d1msk1y/simple-go-chat-server/jwt"
 	"github.com/d1msk1y/simple-go-chat-server/models"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
 func addNewUser(username string) (string, error) {
-	token, err := generateJWT(username)
+	token, err := jwt.GenerateJWT(username)
 	if err != nil {
 		return "", fmt.Errorf("Error occurred: ", err)
 	}
