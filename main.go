@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/auth"
@@ -84,10 +83,11 @@ func postMessage(c *gin.Context) {
 	}
 
 	// Assign message to a specific room
-	result, err := database.DB.Exec("INSERT INTO Messages (username, time, message) VALUES (?, ?, ?)",
+	result, err := database.DB.Exec("INSERT INTO Messages (username, time, message, room_id) VALUES (?, ?, ?, ?)",
 		newMessage.Username,
 		newMessage.Time,
-		newMessage.Message)
+		newMessage.Message,
+		newMessage.RoomId)
 	if err != nil {
 		fmt.Errorf("addMessage ", err)
 	}
@@ -101,30 +101,42 @@ func postMessage(c *gin.Context) {
 	net.Conn.WriteMessage(websocket.TextMessage, messageJson)
 }
 
-func getMessagesByPage(c *gin.Context) {
-	pageId := c.Param("page")
+func getMessagesFromDB(query string, args ...interface{}) ([]models.Message, error) {
 	var messages []models.Message
-	roomId := multi_room.GetRoomID(c)
 
-	parsedId, err := strconv.ParseInt(pageId, 6, 12)
-	startOffset := parsedId * 10
-
-	rows, err := database.DB.Query("SELECT * FROM Messages Where roomd_id = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomId, pageSize, startOffset)
+	rows, err := database.DB.Query(query, args...)
 	if err != nil {
-		fmt.Errorf("messagesFromDB %q: %v", err)
+		fmt.Println("sql query", err)
+		return nil, err
 	}
-
 	defer rows.Close()
+
 	for rows.Next() {
 		var message models.Message
-		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
-			fmt.Errorf("messagesFromDB %q: %v", err)
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomId); err != nil {
+			fmt.Println("sql scan: ", err)
+			return nil, err
 		}
 		messages = append(messages, message)
 	}
+
 	if err := rows.Err(); err != nil {
-		fmt.Errorf("messagesFromDB %q: %v", err)
+		fmt.Println("sql row: ", err)
+		return nil, err
 	}
+
+	return messages, nil
+}
+
+func getMessagesByPage(c *gin.Context) {
+	pageId := c.Param("page")
+	roomId := multi_room.GetRoomID(c)
+
+	parsedId, _ := strconv.ParseInt(pageId, 6, 12)
+	startOffset := parsedId * 10
+
+	messages, _ := getMessagesFromDB("SELECT * FROM Messages Where roomd_id = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomId, pageSize, startOffset)
+
 	c.IndentedJSON(http.StatusOK, gin.H{
 		"messages": messages,
 		"pageSize": pageSize,
@@ -135,38 +147,11 @@ func getMessagesByPage(c *gin.Context) {
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
 	roomId := multi_room.GetRoomID(c)
-
-	row := database.DB.QueryRow("SELECT * FROM Messages WHERE room_id = ? ORDER BY ID desc LIMIT ?, 1;", roomId, id)
-
-	var message models.Message
-	if err := row.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomId); err != nil {
-		if err == sql.ErrNoRows {
-			fmt.Errorf("messageById %d: no such message")
-		}
-		fmt.Errorf("messagesFromDB %q: %v", err)
-	}
-	c.IndentedJSON(http.StatusOK, message)
+	message, _ := getMessagesFromDB("SELECT * FROM Messages WHERE room_id = ? ORDER BY ID desc LIMIT ?, 1;", roomId, id)
+	c.IndentedJSON(http.StatusOK, message[0])
 }
 
-// test func
 func getAllMessages(c *gin.Context) {
-	var messages []models.Message
-
-	rows, err := database.DB.Query("SELECT * FROM Messages")
-	if err != nil {
-		fmt.Errorf("messagesFromDB %q: %v", err)
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-		var message models.Message
-		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message); err != nil {
-			fmt.Errorf("messagesFromDB %q: %v", err)
-		}
-		messages = append(messages, message)
-	}
-	if err := rows.Err(); err != nil {
-		fmt.Errorf("messagesFromDB %q: %v", err)
-	}
+	messages, _ := getMessagesFromDB("SELECT * FROM Messages ORDER BY ID desc")
 	c.IndentedJSON(http.StatusOK, messages)
 }

@@ -10,7 +10,7 @@ import (
 
 var secretKey = []byte(os.Getenv("CHATSECRET"))
 
-func generateJWT(username string) (string, error) {
+func GenerateJWT(username string) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["authorized"] = true
@@ -27,7 +27,7 @@ func generateJWT(username string) (string, error) {
 	return tokenString, nil
 }
 
-func verifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
+func VerifyJWT(endpointHandler func(c *gin.Context)) gin.HandlerFunc {
 	return gin.HandlerFunc(func(c *gin.Context) {
 		tokenString := c.GetHeader("Token")
 		if tokenString == "" {
