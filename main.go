@@ -57,6 +57,7 @@ func runServer() {
 	router.GET("/rooms/new", multi_room.PostRoom)
 	router.GET("/rooms/code/:code", multi_room.GetRoomByCode)
 	router.GET("/rooms/id/:id", multi_room.GetRoomByID)
+	router.POST("/rooms/join", multi_room.AssignUserToRoom)
 
 	router.POST("/messages", postMessage)
 	router.GET("/auth", auth.TryAuthUser)

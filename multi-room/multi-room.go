@@ -69,3 +69,13 @@ func GetRoomByID(c *gin.Context) {
 	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomID)
 	c.IndentedJSON(http.StatusCreated, room)
 }
+
+func AssignUserToRoom(c *gin.Context) {
+	roomID := c.GetHeader("RoomID")
+	username := c.GetHeader("Username")
+	result, err := database.DB.Exec("UPDATE Users SET room_id=? WHERE username=?", roomID, username)
+	if err != nil {
+		fmt.Println("assign user: ", err)
+	}
+	fmt.Println(result)
+}
