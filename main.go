@@ -1,9 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/d1msk1y/simple-go-chat-server/auth"
 	"github.com/d1msk1y/simple-go-chat-server/database"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
@@ -118,7 +118,7 @@ func runServer() {
 	router.POST("/rooms/join", multi_room.AssignUserToRoom)
 
 	router.POST("/messages", postMessage)
-	router.GET("/auth", tryAuthUser)
+	router.GET("/auth", auth.TryAuthUser)
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
@@ -153,34 +153,6 @@ func addNewUser(username string) (string, error) {
 	return token, nil
 }
 
-func tryAuthUser(c *gin.Context) {
-	username := c.GetHeader("Username")
-
-	row := database.DB.QueryRow("SELECT * FROM Users WHERE username = ?;", username)
-
-	var user models.User
-	err := row.Scan(&user.Username, &user.JWT)
-	if err != nil {
-		fmt.Println("userFromDB %q: %v", err)
-	}
-
-	if err == sql.ErrNoRows {
-		fmt.Println("userById %d: no such user, authorizing the new one...")
-		token, err := addNewUser(username)
-		if err != nil {
-			fmt.Println("couldn't authorize the new user")
-		}
-		newUser := models.User{
-			Username: username,
-			JWT:      token,
-		}
-		c.IndentedJSON(http.StatusOK, newUser)
-	} else {
-		//token = user.JWT
-		c.IndentedJSON(http.StatusOK, user)
-	}
-}
-
 func postMessage(c *gin.Context) {
 	var newMessage models.Message
 	if err := c.BindJSON(&newMessage); err != nil {
@@ -193,7 +165,7 @@ func postMessage(c *gin.Context) {
 		newMessage.Username,
 		newMessage.Time,
 		newMessage.Message,
-		newMessage.RoomId)
+		newMessage.RoomToken)
 	if err != nil {
 		fmt.Errorf("addMessage ", err)
 	}
@@ -219,7 +191,7 @@ func getMessagesFromDB(query string, args ...interface{}) ([]models.Message, err
 
 	for rows.Next() {
 		var message models.Message
-		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomId); err != nil {
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomToken); err != nil {
 			fmt.Println("sql scan: ", err)
 			return nil, err
 		}

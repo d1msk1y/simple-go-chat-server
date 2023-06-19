@@ -22,13 +22,13 @@ func GenerateRoomToken(length int) string {
 }
 
 func GetRoomID(c *gin.Context) string {
-	return c.GetHeader("RoomID")
+	return c.GetHeader("RoomToken")
 }
 
 func GetRoomFromDB(c *gin.Context, query string, args interface{}) models.Room {
 	row := database.DB.QueryRow(query, args)
 	var room models.Room
-	if err := row.Scan(&room.ID, &room.Code); err != nil {
+	if err := row.Scan(&room.ID, &room.Token); err != nil {
 		if err == sql.ErrNoRows {
 			c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "No such room"})
 			return models.Room{}
@@ -41,11 +41,11 @@ func GetRoomFromDB(c *gin.Context, query string, args interface{}) models.Room {
 
 func PostRoom(c *gin.Context) {
 	var roomCode = models.Room{
-		Code: GenerateRoomToken(roomTokenLength),
+		Token: GenerateRoomToken(roomTokenLength),
 	}
 
 	result, err := database.DB.Exec("INSERT INTO Rooms (code) VALUES (?);",
-		roomCode.Code)
+		roomCode.Token)
 	if err != nil {
 		fmt.Errorf("addItem ", err)
 	}
@@ -65,13 +65,13 @@ func GetRoomByCode(c *gin.Context) {
 }
 
 func GetRoomByID(c *gin.Context) {
-	roomID := c.GetHeader("RoomID")
+	roomID := c.GetHeader("RoomToken")
 	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomID)
 	c.IndentedJSON(http.StatusCreated, room)
 }
 
 func AssignUserToRoom(c *gin.Context) {
-	roomID := c.GetHeader("RoomID")
+	roomID := c.GetHeader("RoomToken")
 	username := c.GetHeader("Username")
 	result, err := database.DB.Exec("UPDATE Users SET room_id=? WHERE username=?", roomID, username)
 	if err != nil {

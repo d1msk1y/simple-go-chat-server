@@ -35,7 +35,8 @@ func TryAuthUser(c *gin.Context) {
 	row := database.DB.QueryRow("SELECT * FROM Users WHERE username = ?;", username)
 
 	var user models.User
-	err := row.Scan(&user.Username, &user.JWT)
+
+	err := row.Scan(&user.Username, &user.JWT, &user.RoomToken)
 	if err != nil {
 		fmt.Println("userFromDB %q: %v", err)
 	}
