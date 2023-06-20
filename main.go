@@ -113,8 +113,7 @@ func runServer() {
 	router.GET("/messages/pages/:page", getMessagesByPage)
 
 	router.GET("/rooms/new", multi_room.PostRoom)
-	router.GET("/rooms/code/:code", multi_room.GetRoomByCode)
-	router.GET("/rooms/id/:id", multi_room.GetRoomByID)
+	router.GET("/rooms/token/:token", multi_room.GetRoomByToken)
 	router.POST("/rooms/join", multi_room.AssignUserToRoom)
 
 	router.POST("/messages", postMessage)
@@ -161,7 +160,7 @@ func postMessage(c *gin.Context) {
 	}
 
 	// Assign message to a specific room
-	result, err := database.DB.Exec("INSERT INTO Messages (username, time, message, room_id) VALUES (?, ?, ?, ?)",
+	result, err := database.DB.Exec("INSERT INTO Messages (username, time, message, room_token) VALUES (?, ?, ?, ?)",
 		newMessage.Username,
 		newMessage.Time,
 		newMessage.Message,
@@ -208,12 +207,12 @@ func getMessagesFromDB(query string, args ...interface{}) ([]models.Message, err
 
 func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
-	roomId := multi_room.GetRoomID(c)
+	roomToken := multi_room.GetRoomToken(c)
 
 	parsedId, _ := strconv.ParseInt(pageId, 6, 12)
 	startOffset := parsedId * 10
 
-	messages, _ := getMessagesFromDB("SELECT * FROM Messages Where roomd_id = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomId, pageSize, startOffset)
+	messages, _ := getMessagesFromDB("SELECT * FROM Messages Where room_token = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomToken, pageSize, startOffset)
 
 	c.IndentedJSON(http.StatusOK, gin.H{
 		"messages": messages,
@@ -224,8 +223,8 @@ func getMessagesByPage(c *gin.Context) {
 
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
-	roomId := multi_room.GetRoomID(c)
-	message, _ := getMessagesFromDB("SELECT * FROM Messages WHERE room_id = ? ORDER BY ID desc LIMIT ?, 1;", roomId, id)
+	roomToken := multi_room.GetRoomToken(c)
+	message, _ := getMessagesFromDB("SELECT * FROM Messages WHERE room_token = ? ORDER BY ID desc LIMIT ?, 1;", roomToken, id)
 	c.IndentedJSON(http.StatusOK, message[0])
 }
 
