@@ -1,9 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/d1msk1y/simple-go-chat-server/auth"
 	"github.com/d1msk1y/simple-go-chat-server/database"
 	"github.com/d1msk1y/simple-go-chat-server/limiter"
 	"github.com/d1msk1y/simple-go-chat-server/models"
@@ -113,12 +113,11 @@ func runServer() {
 	router.GET("/messages/pages/:page", getMessagesByPage)
 
 	router.GET("/rooms/new", multi_room.PostRoom)
-	router.GET("/rooms/code/:code", multi_room.GetRoomByCode)
-	router.GET("/rooms/id/:id", multi_room.GetRoomByID)
+	router.GET("/rooms/token/:token", multi_room.GetRoomByToken)
 	router.POST("/rooms/join", multi_room.AssignUserToRoom)
 
 	router.POST("/messages", postMessage)
-	router.GET("/auth", tryAuthUser)
+	router.GET("/auth", auth.TryAuthUser)
 
 	router.GET("/", func(c *gin.Context) {
 		c.String(http.StatusOK, "Chat server is running!")
@@ -153,34 +152,6 @@ func addNewUser(username string) (string, error) {
 	return token, nil
 }
 
-func tryAuthUser(c *gin.Context) {
-	username := c.GetHeader("Username")
-
-	row := database.DB.QueryRow("SELECT * FROM Users WHERE username = ?;", username)
-
-	var user models.User
-	err := row.Scan(&user.Username, &user.JWT)
-	if err != nil {
-		fmt.Println("userFromDB %q: %v", err)
-	}
-
-	if err == sql.ErrNoRows {
-		fmt.Println("userById %d: no such user, authorizing the new one...")
-		token, err := addNewUser(username)
-		if err != nil {
-			fmt.Println("couldn't authorize the new user")
-		}
-		newUser := models.User{
-			Username: username,
-			JWT:      token,
-		}
-		c.IndentedJSON(http.StatusOK, newUser)
-	} else {
-		//token = user.JWT
-		c.IndentedJSON(http.StatusOK, user)
-	}
-}
-
 func postMessage(c *gin.Context) {
 	var newMessage models.Message
 	if err := c.BindJSON(&newMessage); err != nil {
@@ -189,11 +160,11 @@ func postMessage(c *gin.Context) {
 	}
 
 	// Assign message to a specific room
-	result, err := database.DB.Exec("INSERT INTO Messages (username, time, message, room_id) VALUES (?, ?, ?, ?)",
+	result, err := database.DB.Exec("INSERT INTO Messages (username, time, message, room_token) VALUES (?, ?, ?, ?)",
 		newMessage.Username,
 		newMessage.Time,
 		newMessage.Message,
-		newMessage.RoomId)
+		newMessage.RoomToken)
 	if err != nil {
 		fmt.Errorf("addMessage ", err)
 	}
@@ -219,7 +190,7 @@ func getMessagesFromDB(query string, args ...interface{}) ([]models.Message, err
 
 	for rows.Next() {
 		var message models.Message
-		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomId); err != nil {
+		if err := rows.Scan(&message.ID, &message.Username, &message.Time, &message.Message, &message.RoomToken); err != nil {
 			fmt.Println("sql scan: ", err)
 			return nil, err
 		}
@@ -236,12 +207,12 @@ func getMessagesFromDB(query string, args ...interface{}) ([]models.Message, err
 
 func getMessagesByPage(c *gin.Context) {
 	pageId := c.Param("page")
-	roomId := multi_room.GetRoomID(c)
+	roomToken := multi_room.GetRoomToken(c)
 
 	parsedId, _ := strconv.ParseInt(pageId, 6, 12)
 	startOffset := parsedId * 10
 
-	messages, _ := getMessagesFromDB("SELECT * FROM Messages Where roomd_id = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomId, pageSize, startOffset)
+	messages, _ := getMessagesFromDB("SELECT * FROM Messages Where room_token = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomToken, pageSize, startOffset)
 
 	c.IndentedJSON(http.StatusOK, gin.H{
 		"messages": messages,
@@ -252,8 +223,8 @@ func getMessagesByPage(c *gin.Context) {
 
 func getMessageByID(c *gin.Context) {
 	id := c.Param("id")
-	roomId := multi_room.GetRoomID(c)
-	message, _ := getMessagesFromDB("SELECT * FROM Messages WHERE room_id = ? ORDER BY ID desc LIMIT ?, 1;", roomId, id)
+	roomToken := multi_room.GetRoomToken(c)
+	message, _ := getMessagesFromDB("SELECT * FROM Messages WHERE room_token = ? ORDER BY ID desc LIMIT ?, 1;", roomToken, id)
 	c.IndentedJSON(http.StatusOK, message[0])
 }
 

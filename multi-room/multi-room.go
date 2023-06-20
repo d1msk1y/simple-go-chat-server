@@ -21,14 +21,14 @@ func GenerateRoomToken(length int) string {
 	return hex.EncodeToString(b)
 }
 
-func GetRoomID(c *gin.Context) string {
-	return c.GetHeader("RoomID")
+func GetRoomToken(c *gin.Context) string {
+	return c.GetHeader("RoomToken")
 }
 
 func GetRoomFromDB(c *gin.Context, query string, args interface{}) models.Room {
 	row := database.DB.QueryRow(query, args)
 	var room models.Room
-	if err := row.Scan(&room.ID, &room.Code); err != nil {
+	if err := row.Scan(&room.Token); err != nil {
 		if err == sql.ErrNoRows {
 			c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "No such room"})
 			return models.Room{}
@@ -40,12 +40,12 @@ func GetRoomFromDB(c *gin.Context, query string, args interface{}) models.Room {
 }
 
 func PostRoom(c *gin.Context) {
-	var roomCode = models.Room{
-		Code: GenerateRoomToken(roomTokenLength),
+	var roomToken = models.Room{
+		Token: GenerateRoomToken(roomTokenLength),
 	}
 
-	result, err := database.DB.Exec("INSERT INTO Rooms (code) VALUES (?);",
-		roomCode.Code)
+	result, err := database.DB.Exec("INSERT INTO Rooms (token) VALUES (?);",
+		roomToken.Token)
 	if err != nil {
 		fmt.Errorf("addItem ", err)
 	}
@@ -53,27 +53,21 @@ func PostRoom(c *gin.Context) {
 	rowsAffected, _ := result.RowsAffected()
 	fmt.Printf("Inserted %d rows into the table\n", rowsAffected)
 
-	query := "SELECT * FROM Rooms ORDER BY ID desc LIMIT ?, 1;"
+	query := "SELECT * FROM Rooms LIMIT ?, 1;"
 	newRoom := GetRoomFromDB(c, query, 0)
 	c.IndentedJSON(http.StatusCreated, newRoom)
 }
 
-func GetRoomByCode(c *gin.Context) {
-	roomCode := c.GetHeader("RoomCode")
-	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomCode)
-	c.IndentedJSON(http.StatusCreated, room)
-}
-
-func GetRoomByID(c *gin.Context) {
-	roomID := c.GetHeader("RoomID")
-	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE code = ?", roomID)
+func GetRoomByToken(c *gin.Context) {
+	roomToken := c.Param("token")
+	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE token = ?", roomToken)
 	c.IndentedJSON(http.StatusCreated, room)
 }
 
 func AssignUserToRoom(c *gin.Context) {
-	roomID := c.GetHeader("RoomID")
+	roomToken := c.GetHeader("RoomToken")
 	username := c.GetHeader("Username")
-	result, err := database.DB.Exec("UPDATE Users SET room_id=? WHERE username=?", roomID, username)
+	result, err := database.DB.Exec("UPDATE Users SET room_token=? WHERE username=?", roomToken, username)
 	if err != nil {
 		fmt.Println("assign user: ", err)
 	}
