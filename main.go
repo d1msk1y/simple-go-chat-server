@@ -114,6 +114,7 @@ func runServer() {
 
 	router.GET("/rooms/new", multi_room.PostRoom)
 	router.GET("/rooms/token/:token", multi_room.GetRoomByToken)
+	router.GET("/rooms/users/:token", multi_room.GetRoomUsers)
 	router.POST("/rooms/join", multi_room.AssignUserToRoom)
 
 	router.POST("/messages", postMessage)
@@ -131,25 +132,6 @@ func runServer() {
 	if err != nil {
 		return
 	}
-}
-
-func addNewUser(username string) (string, error) {
-	token, err := generateJWT(username)
-	if err != nil {
-		return "", fmt.Errorf("Error occurred: ", err)
-	}
-
-	result, err := database.DB.Exec("INSERT INTO Users (Username, JWT) VALUES (?, ?)",
-		username,
-		token)
-	if err != nil {
-		return "", fmt.Errorf("addMessage ", err)
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	fmt.Printf("Inserted %d rows into the Messages table\n", rowsAffected)
-
-	return token, nil
 }
 
 func postMessage(c *gin.Context) {

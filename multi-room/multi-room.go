@@ -64,6 +64,33 @@ func GetRoomByToken(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, room)
 }
 
+func GetRoomUsers(c *gin.Context) {
+	token := c.Param("token")
+	var users []models.User
+	row, err := database.DB.Query("SELECT * FROM Users WHERE room_token = ?;", token)
+	if err != nil {
+		fmt.Println("User sql query", err)
+		c.IndentedJSON(http.StatusInternalServerError, err)
+		return
+	}
+	for row.Next() {
+		var user models.User
+		if err := row.Scan(user.JWT, user.Username, user.RoomToken); err != nil {
+			fmt.Println("User sql scan: ", err)
+			c.IndentedJSON(http.StatusInternalServerError, err)
+			return
+		}
+		users = append(users, user)
+	}
+
+	if err := row.Err(); err != nil {
+		fmt.Println("User sql row: ", err)
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, gin.H{"users": users})
+}
+
 func AssignUserToRoom(c *gin.Context) {
 	roomToken := c.GetHeader("RoomToken")
 	username := c.GetHeader("Username")
