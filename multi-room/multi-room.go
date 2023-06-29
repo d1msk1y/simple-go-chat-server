@@ -75,7 +75,7 @@ func GetRoomUsers(c *gin.Context) {
 	}
 	for row.Next() {
 		var user models.User
-		if err := row.Scan(user.JWT, user.Username, user.RoomToken); err != nil {
+		if err := row.Scan(&user.Username, &user.JWT, &user.RoomToken); err != nil {
 			fmt.Println("User sql scan: ", err)
 			c.IndentedJSON(http.StatusInternalServerError, err)
 			return
@@ -88,7 +88,10 @@ func GetRoomUsers(c *gin.Context) {
 		return
 	}
 
-	c.IndentedJSON(http.StatusOK, gin.H{"users": users})
+	c.IndentedJSON(http.StatusOK, gin.H{
+		"users": users,
+		"size":  len(users),
+	})
 }
 
 func AssignUserToRoom(c *gin.Context) {
