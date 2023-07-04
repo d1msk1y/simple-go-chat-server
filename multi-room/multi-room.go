@@ -25,18 +25,18 @@ func GetRoomToken(c *gin.Context) string {
 	return c.GetHeader("RoomToken")
 }
 
-func GetRoomFromDB(c *gin.Context, query string, args interface{}) models.Room {
+func GetRoomFromDB(c *gin.Context, query string, args interface{}) (models.Room, int) {
 	row := database.DB.QueryRow(query, args)
 	var room models.Room
 	if err := row.Scan(&room.Token); err != nil {
 		if err == sql.ErrNoRows {
-			c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "No such room"})
-			return models.Room{}
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "No such room"})
+			return models.Room{}, http.StatusNotFound
 		}
 		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "Couldn't get room from DB"})
-		return models.Room{}
+		return models.Room{}, http.StatusInternalServerError
 	}
-	return room
+	return room, http.StatusOK
 }
 
 func PostRoom(c *gin.Context) {
@@ -54,14 +54,14 @@ func PostRoom(c *gin.Context) {
 	fmt.Printf("Inserted %d rows into the table\n", rowsAffected)
 
 	query := "SELECT * FROM Rooms LIMIT ?, 1;"
-	newRoom := GetRoomFromDB(c, query, 0)
-	c.IndentedJSON(http.StatusCreated, newRoom)
+	newRoom, code := GetRoomFromDB(c, query, 0)
+	c.IndentedJSON(code, newRoom)
 }
 
 func GetRoomByToken(c *gin.Context) {
 	roomToken := c.Param("token")
-	room := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE token = ?", roomToken)
-	c.IndentedJSON(http.StatusCreated, room)
+	room, code := GetRoomFromDB(c, "SELECT * FROM Rooms WHERE token = ?", roomToken)
+	c.IndentedJSON(code, room)
 }
 
 func GetRoomUsers(c *gin.Context) {

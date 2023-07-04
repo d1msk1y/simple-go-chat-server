@@ -194,7 +194,7 @@ func getMessagesByPage(c *gin.Context) {
 	parsedId, _ := strconv.ParseInt(pageId, 6, 12)
 	startOffset := parsedId * 10
 
-	messages, _ := getMessagesFromDB("SELECT * FROM Messages Where room_token = ? ORDER BY ID DESC LIMIT ? OFFSET ?", roomToken, pageSize, startOffset)
+	messages, _ := getMessagesFromDB("SELECT * FROM Messages Where room_token = ? ORDER BY ID ASC LIMIT ? OFFSET ?", roomToken, pageSize, startOffset)
 
 	c.IndentedJSON(http.StatusOK, gin.H{
 		"messages": messages,
