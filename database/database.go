@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"github.com/go-sql-driver/mysql"
 	"log"
-	"os"
 )
 
 var DB *sql.DB
 
 func TryConnectDB() error {
 	cfg := mysql.Config{
-		User:                 os.Getenv("DBUSER"),
-		Passwd:               os.Getenv("DBPASS"),
+		User:                 "root",
+		Passwd:               "admin",
 		Net:                  "tcp",
-		Addr:                 "127.0.0.1:3306",
+		Addr:                 "docker.for.linux.localhost:3306",
 		DBName:               "chat",
 		AllowNativePasswords: true,
 	}
