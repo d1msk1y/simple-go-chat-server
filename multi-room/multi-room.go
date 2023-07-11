@@ -1,19 +1,22 @@
 package multi_room
 
 import (
-	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"github.com/d1msk1y/simple-go-chat-server/database"
 	"github.com/d1msk1y/simple-go-chat-server/models"
 	"github.com/gin-gonic/gin"
+	"math/rand"
 	"net/http"
+	"time"
 )
 
 var roomTokenLength int = 10
 
 func GenerateRoomToken(length int) string {
+	rand.Seed(time.Now().UnixNano())
+
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
 		return ""
@@ -40,12 +43,13 @@ func GetRoomFromDB(c *gin.Context, query string, args interface{}) (models.Room,
 }
 
 func PostRoom(c *gin.Context) {
-	var roomToken = models.Room{
+	fmt.Println(GenerateRoomToken(10))
+	var newRoom = models.Room{
 		Token: GenerateRoomToken(roomTokenLength),
 	}
 
 	result, err := database.DB.Exec("INSERT INTO Rooms (token) VALUES (?);",
-		roomToken.Token)
+		newRoom.Token)
 	if err != nil {
 		fmt.Errorf("addItem ", err)
 	}
@@ -53,9 +57,7 @@ func PostRoom(c *gin.Context) {
 	rowsAffected, _ := result.RowsAffected()
 	fmt.Printf("Inserted %d rows into the table\n", rowsAffected)
 
-	query := "SELECT * FROM Rooms LIMIT ?, 1;"
-	newRoom, code := GetRoomFromDB(c, query, 0)
-	c.IndentedJSON(code, newRoom)
+	c.IndentedJSON(http.StatusOK, newRoom)
 }
 
 func GetRoomByToken(c *gin.Context) {

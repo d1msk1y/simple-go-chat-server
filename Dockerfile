@@ -25,7 +25,5 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /simple-go-chat-server
 EXPOSE 8080
 EXPOSE 3306
 
-
-
 # Run
 CMD ["/simple-go-chat-server"]
